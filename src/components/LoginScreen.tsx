@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Building2, Camera, Check, CheckCircle2, Copy, LogIn, ShieldCheck, Smartphone } from 'lucide-react';
+import loginWorkspaceImg from '../assets/images/hrm_login_workspace_1794541219759.jpg';
 import type { AppWorkspaceMode } from '../types/hrm';
 import { PWAInstallButton } from './PWAInstallButton';
 
@@ -40,7 +41,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
       <div className="relative lg:col-span-7 bg-slate-900 text-white flex flex-col justify-between p-6 sm:p-10 lg:p-14 overflow-hidden min-h-[300px] lg:min-h-screen">
         {!imgFailed ? (
           <img
-            src="/src/assets/images/hrm_login_workspace_1794541219759.jpg"
+            src={loginWorkspaceImg}
             alt="Ruang kerja modern KaryaSync HRM"
             referrerPolicy="no-referrer"
             onError={() => setImgFailed(true)}
