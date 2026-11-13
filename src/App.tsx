@@ -43,6 +43,7 @@ function AppShell() {
 
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [unauthorizedDomain, setUnauthorizedDomain] = useState<string | null>(null);
   const [syncReady, setSyncReady] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
 
@@ -152,12 +153,16 @@ function AppShell() {
   const handleGoogleLogin = async () => {
     setLoginLoading(true);
     setLoginError(null);
+    setUnauthorizedDomain(null);
     try {
       await signInWithPopup(auth, googleProvider);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Gagal masuk dengan Google.';
       if (msg.includes('popup-closed-by-user')) {
         setLoginError('Jendela login Google ditutup sebelum selesai. Silakan coba lagi.');
+      } else if (msg.includes('unauthorized-domain')) {
+        setLoginError('Domain saat ini belum diotorisasi di Firebase Authentication.');
+        setUnauthorizedDomain(typeof window !== 'undefined' ? window.location.hostname : null);
       } else {
         setLoginError(msg);
       }
@@ -190,6 +195,7 @@ function AppShell() {
           onGoogleLogin={handleGoogleLogin}
           isLoading={loginLoading}
           errorMessage={loginError}
+          unauthorizedDomain={unauthorizedDomain}
         />
         <OfflineIndicator />
       </>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Building2, Camera, CheckCircle2, LogIn, ShieldCheck, Smartphone } from 'lucide-react';
+import { Building2, Camera, Check, CheckCircle2, Copy, LogIn, ShieldCheck, Smartphone } from 'lucide-react';
 import type { AppWorkspaceMode } from '../types/hrm';
 import { PWAInstallButton } from './PWAInstallButton';
 
@@ -9,6 +9,7 @@ interface LoginScreenProps {
   onGoogleLogin: () => Promise<void>;
   isLoading: boolean;
   errorMessage: string | null;
+  unauthorizedDomain?: string | null;
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({
@@ -17,8 +18,21 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   onGoogleLogin,
   isLoading,
   errorMessage,
+  unauthorizedDomain,
 }) => {
   const [imgFailed, setImgFailed] = useState(false);
+  const [copiedDomain, setCopiedDomain] = useState(false);
+
+  const handleCopyDomain = async () => {
+    if (!unauthorizedDomain) return;
+    try {
+      await navigator.clipboard.writeText(unauthorizedDomain);
+      setCopiedDomain(true);
+      setTimeout(() => setCopiedDomain(false), 2500);
+    } catch {
+      // ignore clipboard errors
+    }
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col lg:grid lg:grid-cols-12">
@@ -159,9 +173,37 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           {errorMessage && (
             <div
               role="alert"
-              className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs text-rose-800"
+              className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs text-rose-900 space-y-2.5"
             >
-              {errorMessage}
+              <p className="font-medium">{errorMessage}</p>
+              {unauthorizedDomain && (
+                <div className="rounded-lg border border-rose-200 bg-white p-3 text-[11px] text-slate-700 space-y-2">
+                  <p>
+                    Domain aplikasi ini belum terdaftar di{' '}
+                    <strong>Firebase Console → Authentication → Settings → Authorized domains</strong>:
+                  </p>
+                  <div className="flex items-center justify-between gap-2 rounded-md bg-slate-100 px-2.5 py-1.5 font-mono text-[11px] text-slate-900">
+                    <span className="truncate">{unauthorizedDomain}</span>
+                    <button
+                      type="button"
+                      onClick={handleCopyDomain}
+                      className="inline-flex items-center gap-1 rounded bg-white px-2 py-1 text-[11px] font-sans font-medium text-slate-700 border border-slate-300 hover:bg-slate-50 shrink-0"
+                    >
+                      {copiedDomain ? (
+                        <>
+                          <Check className="h-3 w-3 text-emerald-700" />
+                          <span>Tersalin</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="h-3 w-3" />
+                          <span>Salin</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
