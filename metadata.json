@@ -1,0 +1,6 @@
+{
+  "name": "KaryaSync HRM",
+  "description": "Sistem Manajemen SDM Terpadu dengan Panel Backoffice Manajemen, Mobile PWA Presensi Selfie, dan Payroll Harian Real-Time.",
+  "requestFramePermissions": ["camera", "geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

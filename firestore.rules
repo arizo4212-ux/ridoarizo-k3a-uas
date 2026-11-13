@@ -1,0 +1,318 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Core Helpers
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isBootstrappedAdmin() {
+      return isVerified() && request.auth.token.email == 'arizo4212@gmail.com';
+    }
+
+    function isAdmin() {
+      return isBootstrappedAdmin() || (
+        isVerified() &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    // Entity Validators
+    function isValidAdmin(data) {
+      return data.keys().hasAll(['uid', 'email', 'displayName', 'createdAt']) &&
+        data.keys().hasOnly(['uid', 'email', 'displayName', 'createdAt']) &&
+        isValidId(data.uid) &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 160 &&
+        data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 120 &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidPosition(data) {
+      return data.keys().hasAll(['title', 'department', 'defaultDailyRate', 'description', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['title', 'department', 'defaultDailyRate', 'description', 'createdAt', 'updatedAt']) &&
+        data.title is string && data.title.size() >= 2 && data.title.size() <= 100 &&
+        data.department is string && data.department.size() >= 2 && data.department.size() <= 100 &&
+        (data.defaultDailyRate is int || data.defaultDailyRate is float) && data.defaultDailyRate >= 0 && data.defaultDailyRate <= 100000000 &&
+        data.description is string && data.description.size() <= 300 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidWorkSchedule(data) {
+      return data.keys().hasAll(['name', 'workDays', 'startTime', 'endTime', 'lateToleranceMinutes', 'isDefault', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['name', 'workDays', 'startTime', 'endTime', 'lateToleranceMinutes', 'isDefault', 'createdAt', 'updatedAt']) &&
+        data.name is string && data.name.size() >= 2 && data.name.size() <= 100 &&
+        data.workDays is list && data.workDays.size() >= 1 && data.workDays.size() <= 7 &&
+        data.workDays[0] is string && data.workDays[0].size() <= 10 &&
+        data.startTime is string && data.startTime.size() == 5 && data.startTime.matches('^([01]\\d|2[0-3]):[0-5]\\d$') &&
+        data.endTime is string && data.endTime.size() == 5 && data.endTime.matches('^([01]\\d|2[0-3]):[0-5]\\d$') &&
+        (data.lateToleranceMinutes is int || data.lateToleranceMinutes is float) && data.lateToleranceMinutes >= 0 && data.lateToleranceMinutes <= 240 &&
+        data.isDefault is bool &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidEmployee(data) {
+      return data.keys().hasAll([
+          'employeeCode', 'fullName', 'email', 'authUid', 'role',
+          'positionId', 'positionTitle', 'department', 'scheduleId', 'dailyRate',
+          'phone', 'address', 'bankName', 'bankAccount', 'joinDate',
+          'status', 'photoUrl', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'employeeCode', 'fullName', 'email', 'authUid', 'role',
+          'positionId', 'positionTitle', 'department', 'scheduleId', 'dailyRate',
+          'phone', 'address', 'bankName', 'bankAccount', 'joinDate',
+          'status', 'photoUrl', 'createdAt', 'updatedAt'
+        ]) &&
+        data.employeeCode is string && data.employeeCode.size() >= 2 && data.employeeCode.size() <= 32 &&
+        data.fullName is string && data.fullName.size() >= 2 && data.fullName.size() <= 120 &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 160 &&
+        data.authUid is string && data.authUid.size() <= 128 &&
+        (data.authUid == '' || data.authUid.matches('^[a-zA-Z0-9_\\-]+$')) &&
+        data.role in ['admin', 'employee'] &&
+        data.positionId is string && data.positionId.size() <= 128 &&
+        data.positionTitle is string && data.positionTitle.size() <= 100 &&
+        data.department is string && data.department.size() <= 100 &&
+        data.scheduleId is string && data.scheduleId.size() >= 1 && data.scheduleId.size() <= 128 &&
+        (data.dailyRate is int || data.dailyRate is float) && data.dailyRate >= 0 && data.dailyRate <= 100000000 &&
+        data.phone is string && data.phone.size() <= 30 &&
+        data.address is string && data.address.size() <= 300 &&
+        data.bankName is string && data.bankName.size() <= 80 &&
+        data.bankAccount is string && data.bankAccount.size() <= 60 &&
+        data.joinDate is string && data.joinDate.size() == 10 && data.joinDate.matches('^\\d{4}-\\d{2}-\\d{2}$') &&
+        data.status in ['active', 'inactive'] &&
+        data.photoUrl is string && data.photoUrl.size() <= 500 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidAttendance(data) {
+      return data.keys().hasAll([
+          'employeeId', 'authUid', 'employeeCode', 'employeeName', 'positionTitle',
+          'date', 'clockInAt', 'clockOutAt', 'clockInSelfie', 'clockOutSelfie',
+          'clockInLocation', 'clockOutLocation', 'workDurationMinutes', 'status',
+          'dailyRateSnapshot', 'earnedWage', 'notes', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'employeeId', 'authUid', 'employeeCode', 'employeeName', 'positionTitle',
+          'date', 'clockInAt', 'clockOutAt', 'clockInSelfie', 'clockOutSelfie',
+          'clockInLocation', 'clockOutLocation', 'workDurationMinutes', 'status',
+          'dailyRateSnapshot', 'earnedWage', 'notes', 'createdAt', 'updatedAt'
+        ]) &&
+        isValidId(data.employeeId) &&
+        isValidId(data.authUid) &&
+        data.employeeCode is string && data.employeeCode.size() >= 1 && data.employeeCode.size() <= 32 &&
+        data.employeeName is string && data.employeeName.size() >= 1 && data.employeeName.size() <= 120 &&
+        data.positionTitle is string && data.positionTitle.size() <= 100 &&
+        data.date is string && data.date.size() == 10 && data.date.matches('^\\d{4}-\\d{2}-\\d{2}$') &&
+        data.clockInAt is string && data.clockInAt.size() <= 40 &&
+        data.clockOutAt is string && data.clockOutAt.size() <= 40 &&
+        data.clockInSelfie is string && data.clockInSelfie.size() <= 120000 &&
+        data.clockOutSelfie is string && data.clockOutSelfie.size() <= 120000 &&
+        data.clockInLocation is string && data.clockInLocation.size() <= 160 &&
+        data.clockOutLocation is string && data.clockOutLocation.size() <= 160 &&
+        (data.workDurationMinutes is int || data.workDurationMinutes is float) && data.workDurationMinutes >= 0 && data.workDurationMinutes <= 1440 &&
+        data.status in ['hadir', 'terlambat', 'izin', 'alpha'] &&
+        (data.dailyRateSnapshot is int || data.dailyRateSnapshot is float) && data.dailyRateSnapshot >= 0 && data.dailyRateSnapshot <= 100000000 &&
+        (data.earnedWage is int || data.earnedWage is float) && data.earnedWage >= 0 && data.earnedWage <= 100000000 &&
+        data.notes is string && data.notes.size() <= 300 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidPayroll(data) {
+      return data.keys().hasAll([
+          'employeeId', 'authUid', 'employeeCode', 'employeeName', 'positionTitle',
+          'periodStart', 'periodEnd', 'periodLabel', 'daysPresent', 'daysLate',
+          'dailyRate', 'basePay', 'bonus', 'deduction', 'netPay', 'status',
+          'notes', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'employeeId', 'authUid', 'employeeCode', 'employeeName', 'positionTitle',
+          'periodStart', 'periodEnd', 'periodLabel', 'daysPresent', 'daysLate',
+          'dailyRate', 'basePay', 'bonus', 'deduction', 'netPay', 'status',
+          'notes', 'createdAt', 'updatedAt'
+        ]) &&
+        isValidId(data.employeeId) &&
+        data.authUid is string && data.authUid.size() <= 128 &&
+        data.employeeCode is string && data.employeeCode.size() >= 1 && data.employeeCode.size() <= 32 &&
+        data.employeeName is string && data.employeeName.size() >= 1 && data.employeeName.size() <= 120 &&
+        data.positionTitle is string && data.positionTitle.size() <= 100 &&
+        data.periodStart is string && data.periodStart.size() == 10 && data.periodStart.matches('^\\d{4}-\\d{2}-\\d{2}$') &&
+        data.periodEnd is string && data.periodEnd.size() == 10 && data.periodEnd.matches('^\\d{4}-\\d{2}-\\d{2}$') &&
+        data.periodLabel is string && data.periodLabel.size() >= 2 && data.periodLabel.size() <= 60 &&
+        (data.daysPresent is int || data.daysPresent is float) && data.daysPresent >= 0 && data.daysPresent <= 366 &&
+        (data.daysLate is int || data.daysLate is float) && data.daysLate >= 0 && data.daysLate <= 366 &&
+        (data.dailyRate is int || data.dailyRate is float) && data.dailyRate >= 0 && data.dailyRate <= 100000000 &&
+        (data.basePay is int || data.basePay is float) && data.basePay >= 0 && data.basePay <= 10000000000 &&
+        (data.bonus is int || data.bonus is float) && data.bonus >= 0 && data.bonus <= 1000000000 &&
+        (data.deduction is int || data.deduction is float) && data.deduction >= 0 && data.deduction <= 1000000000 &&
+        (data.netPay is int || data.netPay is float) && data.netPay >= 0 && data.netPay <= 10000000000 &&
+        data.status in ['draft', 'approved', 'paid'] &&
+        data.notes is string && data.notes.size() <= 300 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    // Collection Rules
+    match /admins/{adminId} {
+      allow get: if isValidId(adminId) && (isAdmin() || (isVerified() && request.auth.uid == adminId));
+      allow list: if isAdmin();
+      allow create: if isVerified() && isValidId(adminId) && isValidAdmin(incoming()) && isAdmin() && incoming().uid == adminId && incoming().createdAt == request.time;
+      allow update: if isVerified() && isValidId(adminId) && isValidAdmin(incoming()) && isAdmin() && incoming().uid == existing().uid && incoming().createdAt == existing().createdAt && incoming().diff(existing()).affectedKeys().hasOnly(['email', 'displayName']);
+      allow delete: if isValidId(adminId) && isAdmin();
+    }
+
+    match /positions/{positionId} {
+      allow get: if isVerified() && isValidId(positionId);
+      allow list: if isAdmin();
+      allow create: if isVerified() && isValidId(positionId) && isValidPosition(incoming()) && isAdmin() && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isVerified() && isValidId(positionId) && isValidPosition(incoming()) && isAdmin() && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'department', 'defaultDailyRate', 'description', 'updatedAt']);
+      allow delete: if isValidId(positionId) && isAdmin();
+    }
+
+    match /workSchedules/{scheduleId} {
+      allow get: if isVerified() && isValidId(scheduleId);
+      allow list: if isAdmin();
+      allow create: if isVerified() && isValidId(scheduleId) && isValidWorkSchedule(incoming()) && isAdmin() && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isVerified() && isValidId(scheduleId) && isValidWorkSchedule(incoming()) && isAdmin() && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'workDays', 'startTime', 'endTime', 'lateToleranceMinutes', 'isDefault', 'updatedAt']);
+      allow delete: if isValidId(scheduleId) && isAdmin();
+    }
+
+    match /employees/{employeeId} {
+      allow get: if isValidId(employeeId) && (
+        isAdmin() ||
+        (isVerified() && (existing().authUid == request.auth.uid || existing().email == request.auth.token.email))
+      );
+      allow list: if isAdmin() || (
+        isVerified() && (resource.data.authUid == request.auth.uid || resource.data.email == request.auth.token.email)
+      );
+      allow create: if isVerified() && isValidId(employeeId) && isValidEmployee(incoming()) &&
+        incoming().createdAt == request.time && incoming().updatedAt == request.time && (
+          isAdmin() ||
+          (
+            employeeId == request.auth.uid &&
+            incoming().authUid == request.auth.uid &&
+            incoming().email == request.auth.token.email &&
+            incoming().role == 'employee' &&
+            incoming().dailyRate == 0 &&
+            incoming().status == 'active'
+          )
+        );
+      allow update: if isVerified() && isValidId(employeeId) && isValidEmployee(incoming()) &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time && (
+          (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly([
+            'employeeCode', 'fullName', 'email', 'authUid', 'role',
+            'positionId', 'positionTitle', 'department', 'scheduleId', 'dailyRate',
+            'phone', 'address', 'bankName', 'bankAccount', 'joinDate',
+            'status', 'photoUrl', 'updatedAt'
+          ])) ||
+          (
+            existing().authUid == '' &&
+            existing().email == request.auth.token.email &&
+            incoming().authUid == request.auth.uid &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['authUid', 'photoUrl', 'updatedAt'])
+          ) ||
+          (
+            existing().authUid == request.auth.uid &&
+            incoming().authUid == existing().authUid &&
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'fullName', 'phone', 'address', 'bankName', 'bankAccount', 'photoUrl', 'updatedAt'
+            ])
+          )
+        );
+      allow delete: if isValidId(employeeId) && isAdmin();
+    }
+
+    match /attendances/{attendanceId} {
+      allow get: if isValidId(attendanceId) && (
+        isAdmin() || (isVerified() && existing().authUid == request.auth.uid)
+      );
+      allow list: if isAdmin() || (isVerified() && resource.data.authUid == request.auth.uid);
+      allow create: if isVerified() && isValidId(attendanceId) && isValidAttendance(incoming()) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        exists(/databases/$(database)/documents/employees/$(incoming().employeeId)) && (
+          isAdmin() ||
+          (
+            incoming().authUid == request.auth.uid &&
+            incoming().status in ['hadir', 'terlambat'] &&
+            incoming().clockOutAt == '' &&
+            get(/databases/$(database)/documents/employees/$(incoming().employeeId)).data.authUid == request.auth.uid &&
+            get(/databases/$(database)/documents/employees/$(incoming().employeeId)).data.status == 'active' &&
+            incoming().dailyRateSnapshot == get(/databases/$(database)/documents/employees/$(incoming().employeeId)).data.dailyRate &&
+            incoming().earnedWage == get(/databases/$(database)/documents/employees/$(incoming().employeeId)).data.dailyRate
+          )
+        );
+      allow update: if isVerified() && isValidId(attendanceId) && isValidAttendance(incoming()) &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().employeeId == existing().employeeId &&
+        incoming().authUid == existing().authUid &&
+        incoming().date == existing().date &&
+        incoming().updatedAt == request.time && (
+          (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly([
+            'employeeCode', 'employeeName', 'positionTitle',
+            'clockInAt', 'clockOutAt', 'clockInSelfie', 'clockOutSelfie',
+            'clockInLocation', 'clockOutLocation', 'workDurationMinutes',
+            'status', 'dailyRateSnapshot', 'earnedWage', 'notes', 'updatedAt'
+          ])) ||
+          (
+            existing().authUid == request.auth.uid &&
+            existing().clockOutAt == '' &&
+            incoming().clockOutAt != '' &&
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'clockOutAt', 'clockOutSelfie', 'clockOutLocation',
+              'workDurationMinutes', 'notes', 'updatedAt'
+            ])
+          )
+        );
+      allow delete: if isValidId(attendanceId) && isAdmin();
+    }
+
+    match /payrollRecords/{recordId} {
+      allow get: if isValidId(recordId) && (
+        isAdmin() || (isVerified() && existing().authUid == request.auth.uid)
+      );
+      allow list: if isAdmin() || (isVerified() && resource.data.authUid == request.auth.uid);
+      allow create: if isVerified() && isValidId(recordId) && isValidPayroll(incoming()) && isAdmin() &&
+        exists(/databases/$(database)/documents/employees/$(incoming().employeeId)) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isVerified() && isValidId(recordId) && isValidPayroll(incoming()) && isAdmin() &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().employeeId == existing().employeeId &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'authUid', 'employeeCode', 'employeeName', 'positionTitle',
+          'periodStart', 'periodEnd', 'periodLabel', 'daysPresent', 'daysLate',
+          'dailyRate', 'basePay', 'bonus', 'deduction', 'netPay', 'status',
+          'notes', 'updatedAt'
+        ]);
+      allow delete: if isValidId(recordId) && isAdmin();
+    }
+  }
+}
